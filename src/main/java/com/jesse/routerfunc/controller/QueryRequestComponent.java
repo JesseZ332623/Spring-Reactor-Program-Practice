@@ -1,0 +1,318 @@
+package com.jesse.routerfunc.controller;
+
+import com.jesse.routerfunc.controller.utils.OperatorLogger;
+import com.jesse.routerfunc.controller.utils.ResponseBuilder;
+import com.jesse.routerfunc.entity.ScoreRecordEntity;
+import com.jesse.routerfunc.repository.ScoreRecordRepository;
+import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.reactive.function.server.ServerRequest;
+import org.springframework.web.reactive.function.server.ServerResponse;
+import reactor.core.publisher.Mono;
+
+import java.net.URI;
+
+import static com.jesse.routerfunc.controller.utils.URIParamPrase.praseNumberRequestParam;
+import static java.lang.String.format;
+
+@Slf4j
+@Component
+public class QueryRequestComponent
+{
+    @Autowired
+    private ScoreRecordRepository scoreRecordRepository;
+
+    @Autowired
+    private OperatorLogger  operatorLogger;
+
+    @Autowired
+    private ResponseBuilder responseBuilder;
+
+    @Value(value = "${server.address}")
+    private String SERVER_ADDRESS;
+
+    @Value(value = "${server.port}")
+    private int SERVER_PORT;
+
+    private @NotNull Mono<ServerResponse>
+    queryScoreByIdHandle(Integer scoreId)
+    {
+        return this.scoreRecordRepository
+                   .findScoreRecordByScoreId(scoreId)
+                   .flatMap((score) ->
+                        this.responseBuilder.OK(
+                            score,
+                            format("Query score record id = %d success!", scoreId),
+                            null
+                        )
+                   )
+                   .doOnSubscribe((subscription) ->
+                            this.operatorLogger.logStartedOperator(
+                                    "Processing score query by id: " + scoreId
+                            )
+                    )
+                   .doOnError((error) ->
+                            this.operatorLogger.logErrorOperator(
+                                    "Query score by id: "    +
+                                            scoreId + "failed!", error
+                            )
+                    );
+    }
+
+    /**
+     * 通过前端 URI 中的 id 参数，来查询表中对应的成绩记录。
+     *
+     * @return 承载了单个 ServerResponse 的响应式流，由 Spring 负责订阅。
+     */
+    public @NotNull Mono<ServerResponse>
+    getScoreRecordById(ServerRequest request)
+    {
+        return Mono.defer(
+                () -> {
+                    Integer queryScoreId
+                            = praseNumberRequestParam(request, "id");
+
+                    return this.scoreRecordRepository.existsById(queryScoreId).flatMap(
+                                (exists) ->
+                                        (exists) ? queryScoreByIdHandle(queryScoreId)
+                                                 : this.responseBuilder.NOT_FOUND(
+                                                         format("Score id = %d not found!", queryScoreId),
+                                                         null
+                                                 )
+                            );
+                }
+        ).onErrorResume(
+                IllegalArgumentException.class,
+                (exception) ->
+                    this.responseBuilder.BAD_REQUEST(
+                        format(
+                            "URI %s exception cause: %s.",
+                            request.uri(), exception.getMessage()
+                        ),
+                        exception
+                    )
+        );
+    }
+
+    /**
+     * 查询时间最新的 count 条成绩（由前端 URI 的 count 参数指示）。
+     */
+    public @NotNull Mono<ServerResponse>
+    getRecentScore(ServerRequest request)
+    {
+        return Mono.defer(
+                () -> {
+                    Integer count
+                            = praseNumberRequestParam(request, "count");
+                    /*
+                     * 数据的流动如下所示：
+                     *
+                     * - findRecentScoreRecord() 找出表中时间最新的 count 条数据（返回 Flux<ScoreRecordEntity>）
+                     * - collectList()           将 Flux<ScoreRecordEntity> 流中的多个数据收集为 Mono<List<ScoreRecordEntity>>
+                     * - flatMap(lamba)          将 Mono<List<ScoreRecordEntity>>，流内的数据映射给 ServerResponse，
+                     *                              然后返回 Mono<ServerResponse>，数据的处理到这里就完成了
+                     * - doOnSubscribe()         在该 Mono 正式被订阅前，加一条开始处理数据的日志输出
+                     * - doOnError()             定义 Mono 被订阅执行后出错时，输出的日志
+                     */
+                    return scoreRecordRepository.findRecentScoreRecord(count)
+                            .collectList()
+                            .flatMap(records ->
+                                    (!records.isEmpty())
+                                            ? this.responseBuilder.OK(
+                                                records,
+                                        format("Query %d rows.", count),null
+                                            )
+                                            : this.responseBuilder.NOT_FOUND("Recent score not found!", null)
+                            )
+                            .doOnSubscribe(subscription ->
+                                    this.operatorLogger
+                                        .logStartedOperator("Processing recent scores request.")
+                            )
+                            .doOnError(error ->
+                                    this.operatorLogger.logErrorOperator(
+                                            "Error fetching scores!", error
+                                    )
+                            );
+                }
+        ).onErrorResume(
+                IllegalArgumentException.class,
+                (exception) ->
+                    this.responseBuilder.BAD_REQUEST(
+                        format(
+                            "URI %s exception cause: %s.",
+                            request.uri(), exception.getMessage()
+                        ),
+                        exception
+                    )
+        );
+    }
+
+    /**
+     * 根据前端提交的 JSON（通过 request.bodyToMono({@literal Class<?>}) 映射成指定实体），
+     * 插入一条新的成绩记录。
+     */
+    @Transactional
+    public @NotNull Mono<ServerResponse>
+    insertNewScoreRecord(ServerRequest request)
+    {
+        return request.bodyToMono(ScoreRecordEntity.class)
+                .flatMap((score) -> this.scoreRecordRepository.save(score))
+                .flatMap((savedScore) -> {
+                            /*
+                             * 对于新增数据操作，
+                             * 这里最好是返回 201 (created) 响应码，定位到新增的资源处。
+                             */
+                            URI newResourceLocation
+                                    = URI.create(
+                                        "http://" + SERVER_ADDRESS + ":" + SERVER_PORT +
+                                         "/api/score_record?id=" +
+                                         savedScore.getScoreId()
+                                    );
+
+                            log.debug("New resource location: {}", newResourceLocation);
+
+                            return this.responseBuilder
+                                       .CREATED(
+                                               newResourceLocation,
+                                               format("Insert new score record id = %d complete.", savedScore.getScoreId()),
+                                               savedScore
+                                       );
+                        }
+                )
+                .doOnSubscribe((subscription) ->
+                        this.operatorLogger
+                            .logStartedOperator("Ready to insert new score record.")
+                )
+                .doOnSuccess(response ->
+                        this.operatorLogger
+                             .logSuccessOperator("Insert new score record complete!.")
+                )
+                .doOnError((error) ->
+                        this.operatorLogger
+                            .logErrorOperator("Insert new score record failed!", error)
+                );
+    }
+
+    public @NotNull Mono<ServerResponse>
+    truncateScoreRecord(ServerRequest ignore)
+    {
+        return this.scoreRecordRepository
+                   .truncateScoreRecord()
+                   .doOnSubscribe((subscription) ->
+                            log.info("Ready to truncate score record."))
+                   .doOnSuccess(response ->
+                            log.info("Truncate score record completed successfully.")
+                    )
+                   .doOnError((error) ->
+                            log.error(
+                                    "Truncate score record failed! Cause: {}.",
+                                    error.getMessage()
+                            )
+                    )
+                    /*
+                     * Mono / Flux 的 then() 操作部分注释原文如下：
+                     * In other words, ignore element from this Mono and
+                     * transform its completion signal into the emission and completion signal of a provided Mono<V>.
+                     * Error signal is replayed in the resulting Mono<V>.
+                     *
+                     * 译文：
+                     * 换言之，忽略此 Mono 中的元素，
+                     * 并将其完成信号转换为提供的 Mono<V> 的发射事件和完成信号。
+                     * 错误信号会在结果 Mono<V> 中原样传播。
+                     *
+                     * 在本例中，数据的流动如下所示：
+                     * truncateScoreRecord() -> doOnSubscribe() -> doOnSuccess() -> doOnError()
+                     * 它们都返回 Mono<Void>，
+                     * then() 操作舍弃 Mono<Void> 的数据（Void 也没什么好拿的），
+                     * 只关注操作完成的信号。
+                     * 当上游完成信号发出时 then() 操作触发，构造出一个 OK 的响应。
+                    */
+                   .then(this.responseBuilder.OK(
+                       null,
+                       "Truncate score_record table complete!", null
+                   ));
+    }
+
+    /**
+     * 根据前端 URI 的 id 参数，删除指定的成绩记录。
+     */
+    @Transactional
+    public @NotNull Mono<ServerResponse>
+    deleteScoreRecordById(ServerRequest request)
+    {
+        /*
+         * Mono.defer() 推迟方法
+         * 令代码块内的操作不会在构建 Mono 时就立即执行，而是在正式被订阅后才开始执行。
+         *
+         * 在本例中，倘若没有使用 defer()，
+         * praseNumberRequestParam() 会立即执行，如果抛出异常就不会在数据管道中传递
+         * （虽然可以在内部进行 try-catch 捕获，但这显然破环了响应式流）。
+         *
+         * 反之使用 defer() 再辅以 onErrorResume()（出错时恢复），
+         * 订阅后执行 praseNumberRequestParam() 抛出的异常就会在数据管道中传递，
+         * 被正确捕获并处理。
+         */
+        return Mono.defer(
+                () -> {
+                    Integer deletedId
+                            = praseNumberRequestParam(request, "id");
+                    return handleDeletion(deletedId);
+                }
+        ).onErrorResume(
+                IllegalArgumentException.class,
+                (exception) ->
+                    this.responseBuilder.BAD_REQUEST(
+                        format(
+                            "URI %s exception cause: %s.",
+                            request.uri(), exception.getMessage()
+                        ),
+                        exception
+                    )
+        );
+    }
+
+    private Mono<ServerResponse>
+    handleDeletion(Integer scoreId)
+    {
+        return this.scoreRecordRepository.existsById(scoreId)
+                .flatMap((exists) ->
+                        (exists) ? deleteScoreRecord(scoreId)
+                                 : this.responseBuilder.NOT_FOUND(
+                                           format("Score id: [%d] not exist!", scoreId),
+                                            null
+                                       )
+                );
+    }
+
+    private Mono<ServerResponse>
+    deleteScoreRecord(Integer scoreId)
+    {
+        return this.scoreRecordRepository.deleteById(scoreId)
+                .doOnSubscribe((X_x) ->
+                        this.operatorLogger
+                            .logStartedOperator("Ready to delete score record id = " + scoreId)
+                )
+                .doOnSuccess((o_O) ->
+                        this.operatorLogger
+                            .logSuccessOperator(
+                                    "Delete core record id = " +
+                                    scoreId + " completed!"
+                            )
+                )
+                .doOnError((error) ->
+                        this.operatorLogger.logErrorOperator(
+                                "Delete score record id = " +
+                                scoreId + " failed!", error
+                        )
+                )
+                .then(this.responseBuilder.OK(
+                    null,
+                    format("Delete core record id = %d completed successfully!", scoreId),
+                    null
+                ));
+    }
+}
