@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
  * <p>score_record 数据表实体类。</p>
  *
  * <div>
- *     <p>这里用到了两个新的 Lombok 注解，这里说明一下：</p>
+ *     <p>这里用到了两个新的 Lombok 注解，在此说明一下：</p>
  *     <ol>
  *         <li>
  *             {@literal @RequiredArgsConstructor} 注解
@@ -28,7 +28,7 @@ import java.time.LocalDateTime;
  *             <p>
  *                 这里设置了 exclude （排除）属性为 "scoreId"，
  *                 表明比较和哈希计算会排除 scoreId 字段。</br>
- *
+ *                 这意味着：在业务上两个实例除 id 字段外完全相等那它们就是相等的。
  *             </p>
  *         </li>
  *     </ol>
@@ -39,18 +39,19 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @RequiredArgsConstructor
 @EqualsAndHashCode(exclude = "scoreId")
+@ToString
 public class ScoreRecordEntity
 {
     @Id
     @Column("score_id")
-    private Integer scoreId;            // 成绩记录 ID
+    private Integer scoreId;      // 成绩记录 ID
 
     @Column("user_id")
-    private @NonNull Integer userId;             // 用户 ID
+    private @NonNull Long userId; // 用户 ID
 
     @Column("submit_date")
     private @NonNull
-    LocalDateTime submitDate = LocalDateTime.now();   // 成绩提交日期
+    LocalDateTime submitDate = LocalDateTime.now(); // 成绩提交日期
 
     @Column("correct_count")
     private @NonNull
@@ -63,19 +64,4 @@ public class ScoreRecordEntity
     @Column("no_answer_count")
     private @NonNull
     Integer noAnswerCount = 0;      // 未答数
-
-    @Override
-    public String toString()
-    {
-        return String.format(
-                """
-                ScoreRecordEntity[
-                    Score ID = %d, User ID = %d, Submit Date = %s,
-                    Correct Count = %d, Error Count = %d, No Answer Count = %d
-                ]
-                """,
-                scoreId, userId, submitDate,
-                correctCount, errorCount, noAnswerCount
-        );
-    }
 }
