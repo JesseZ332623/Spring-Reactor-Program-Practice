@@ -50,10 +50,11 @@ public class RouterFunctionConfig
 
         RouterFunction<ServerResponse> complexRequestRoute
                 = RouterFunctions.route()
-                  .GET("/api/recent_score",    this.queryRequestComponent::getRecentScore)
-                  .GET("/api/score_record",    this.queryRequestComponent::getScoreRecordById)
-                  .POST("/api/add_new_score",  this.queryRequestComponent::insertNewScoreRecord)
-                  .DELETE("/api/delete_score", this.queryRequestComponent::deleteScoreRecordById)
+                  .GET("/api/recent_score",      this.queryRequestComponent::getRecentScore)
+                  .GET("/api/score_record",      this.queryRequestComponent::getScoreRecordById)
+                  .POST("/api/add_new_score",    this.queryRequestComponent::insertNewScoreRecord)
+                  .PUT("/api/update_score",      this.queryRequestComponent::updateSpecifiedScoreRecord)
+                  .DELETE("/api/delete_score",   this.queryRequestComponent::deleteScoreRecordById)
                   .DELETE("/api/truncate_score", this.queryRequestComponent::truncateScoreRecord)
                   .build();
 
