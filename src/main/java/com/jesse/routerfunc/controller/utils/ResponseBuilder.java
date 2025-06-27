@@ -108,9 +108,9 @@ public class ResponseBuilder
         /**
          * 在响应体中添加分页元数据。
          *
-         * @param page  第几页？
-         * @param size  一页几条数据？
-         * @param totalItems 总共几条数据？
+         * @param page        第几页？
+         * @param size        一页几条数据？
+         * @param totalItems  总共几条数据？
          *
          * @return 添加完分页元数据的响应体
          */
@@ -437,10 +437,9 @@ public class ResponseBuilder
         return this.buildError(
             HttpStatus.BAD_REQUEST, message,
             exception,
-            headers -> {
-                headers.setContentType(MediaType.APPLICATION_JSON);
-            }
-       );
+            headers ->
+                headers.setContentType(MediaType.APPLICATION_JSON)
+      );
     }
 
     /** NOT FOUND 响应的预设构建。*/
@@ -462,6 +461,11 @@ public class ResponseBuilder
         return this.buildCreated(
             location, body, customMessage,
             (headers) -> {
+                /*
+                 * X-RateLimit-Remaining 用于提示客户端，
+                 * 还可以发起多少个请求，如果客户端的请求数超过这个值就会被拦截，
+                 * 并返回 429 Too Many Requests 状态码。
+                 */
                 headers.add("X-RateLimit-Remaining", "100");
                 headers.add("X-Custom-Header", "value");
                 headers.setContentType(MediaType.APPLICATION_JSON);
