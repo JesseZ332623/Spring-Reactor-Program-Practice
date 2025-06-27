@@ -11,7 +11,7 @@
 	<groupId>com.jesse</groupId>
 	<artifactId>routerfunc</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>routerfunc</name>
+	<name>RouterFunc</name>
 	<description>Use router function in web flux</description>
 	<url/>
 	<licenses>
