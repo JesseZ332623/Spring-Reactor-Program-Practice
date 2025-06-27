@@ -2,8 +2,10 @@ package com.jesse.routerfunc.controller;
 
 import com.jesse.routerfunc.controller.utils.OperatorLogger;
 import com.jesse.routerfunc.controller.utils.ResponseBuilder;
+import com.jesse.routerfunc.dto.UpdateScoreDTO;
 import com.jesse.routerfunc.entity.ScoreRecordEntity;
 import com.jesse.routerfunc.repository.ScoreRecordRepository;
+import com.jesse.routerfunc.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +17,7 @@ import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
+import java.time.LocalDateTime;
 
 import static com.jesse.routerfunc.controller.utils.URIParamPrase.praseNumberRequestParam;
 import static java.lang.String.format;
@@ -25,6 +28,9 @@ public class QueryRequestComponent
 {
     @Autowired
     private ScoreRecordRepository scoreRecordRepository;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Autowired
     private OperatorLogger  operatorLogger;
@@ -151,6 +157,45 @@ public class QueryRequestComponent
         );
     }
 
+    private @NotNull Mono<ServerResponse>
+    doInsertNewScore(ScoreRecordEntity newScore)
+    {
+        return this.scoreRecordRepository.save(newScore)
+            .flatMap((flatScore) -> {
+                /*
+                 * 对于新增数据操作，
+                 * 这里最好是返回 201 (created) 响应码，定位到新增的资源处。
+                 */
+                URI newResourceLocation
+                    = URI.create(
+                    "http://" + SERVER_ADDRESS + ":" + SERVER_PORT +
+                        "/api/score_record?id=" +
+                        newScore.getScoreId()
+                );
+
+                log.debug("New resource location: {}", newResourceLocation);
+
+                return this.responseBuilder
+                    .CREATED(
+                        newResourceLocation,
+                        format("Insert new score record id = %d complete.", newScore.getScoreId()),
+                        newScore
+                    );
+            })
+            .doOnSubscribe((subscription) ->
+                this.operatorLogger
+                    .logStartedOperator("Ready to insert new score record.")
+            )
+            .doOnSuccess(response ->
+                this.operatorLogger
+                    .logSuccessOperator("Insert new score record complete!.")
+            )
+            .doOnError((error) ->
+                this.operatorLogger
+                    .logErrorOperator("Insert new score record failed!", error)
+            );
+    }
+
     /**
      * 根据前端提交的 JSON（通过 request.bodyToMono({@literal Class<?>}) 映射成指定实体），
      * 插入一条新的成绩记录。
@@ -160,41 +205,125 @@ public class QueryRequestComponent
     insertNewScoreRecord(ServerRequest request)
     {
         return request.bodyToMono(ScoreRecordEntity.class)
-                .flatMap((score) -> this.scoreRecordRepository.save(score))
-                .flatMap((savedScore) -> {
-                            /*
-                             * 对于新增数据操作，
-                             * 这里最好是返回 201 (created) 响应码，定位到新增的资源处。
-                             */
-                            URI newResourceLocation
-                                    = URI.create(
-                                        "http://" + SERVER_ADDRESS + ":" + SERVER_PORT +
-                                         "/api/score_record?id=" +
-                                         savedScore.getScoreId()
-                                    );
+            .flatMap((score) ->
+            {
+                // 先检查用户表中有没有这个 ID，再进行后续操作
+                return this.userRepository.existsById(score.getUserId())
+                    .flatMap(
+                        (exists) ->
+                            (exists) ? this.doInsertNewScore(score)
+                                     : this.responseBuilder.NOT_FOUND(
+                                         format(
+                                             "Insert failed! User ID = %d not found!",
+                                             score.getUserId()
+                                         ), null
+                                    )
+                    );
+            })
+            .onErrorResume(
+                IllegalArgumentException.class,
+                (exception) -> {
+                    /*
+                     * 若前端给出的 JSON 不正确，
+                     * 那么 bodyToMono(ScoreRecordEntity.class) 便不会正确解析，
+                     * 后续的调用会抛出非法参数异常。
+                     */
+                    return this.responseBuilder.BAD_REQUEST(
+                        exception.getMessage(),
+                        exception
+                    );
+                }
+            );
+    }
 
-                            log.debug("New resource location: {}", newResourceLocation);
+    private @NotNull Mono<ServerResponse>
+    doUpdateScoreRecord(UpdateScoreDTO updateScoreDTO)
+    {
+        return this.scoreRecordRepository
+                   .findById(updateScoreDTO.getScoreId())
+                   .flatMap(
+                       (score) ->
+                       {
+                           score.setCorrectCount(
+                               updateScoreDTO.getCorrectCount()
+                           );
 
-                            return this.responseBuilder
-                                       .CREATED(
-                                               newResourceLocation,
-                                               format("Insert new score record id = %d complete.", savedScore.getScoreId()),
-                                               savedScore
-                                       );
-                        }
-                )
-                .doOnSubscribe((subscription) ->
+                           score.setErrorCount(
+                               updateScoreDTO.getErrorCount()
+                           );
+
+                           score.setNoAnswerCount(
+                               updateScoreDTO.getNoAnswerCount()
+                           );
+
+                           score.setSubmitDate(LocalDateTime.now());
+
+                           return this.scoreRecordRepository.save(score);
+                       }
+                   )
+                   .flatMap((updatedScore) ->
+                   {
+                       URI updatedResourceLocation
+                           = URI.create(
+                                   "http://"                               +
+                                   SERVER_ADDRESS + ":"    + SERVER_PORT   +
+                                   "/api/score_record?id=" + updatedScore.getScoreId()
+                               );
+
+                       return this.responseBuilder.CREATED(
+                           updatedResourceLocation,
+                           format("Update score id = %d complete!", updatedScore.getScoreId()),
+                           updatedScore
+                       );
+                   })
+                    .doOnSubscribe((subscription) ->
                         this.operatorLogger
-                            .logStartedOperator("Ready to insert new score record.")
-                )
-                .doOnSuccess(response ->
+                            .logStartedOperator("Ready to update score record.")
+                    )
+                    .doOnSuccess(response ->
                         this.operatorLogger
-                             .logSuccessOperator("Insert new score record complete!.")
-                )
-                .doOnError((error) ->
+                            .logSuccessOperator("Update score record complete!")
+                    )
+                    .doOnError((error) ->
                         this.operatorLogger
-                            .logErrorOperator("Insert new score record failed!", error)
-                );
+                            .logErrorOperator("Update score record failed!", error)
+                    );
+    }
+
+    @Transactional
+    public @NotNull Mono<ServerResponse>
+    updateSpecifiedScoreRecord(ServerRequest request)
+    {
+        return request.bodyToMono(UpdateScoreDTO.class)
+                      .flatMap((updateScoreDTO) ->
+                      {
+                          // 检查成绩 ID 是否存在再进行修改
+                          return this.scoreRecordRepository
+                                     .existsById(updateScoreDTO.getScoreId())
+                                     .flatMap((exists) ->
+                                          (exists) ? this.doUpdateScoreRecord(updateScoreDTO)
+                                                   : this.responseBuilder.NOT_FOUND(
+                                                       format(
+                                                           "Score ID = %d not found!",
+                                                           updateScoreDTO.getScoreId()
+                                                       ), null
+                                          )
+                                     );
+                      })
+                      .onErrorResume(
+                          IllegalArgumentException.class,
+                          (exception) -> {
+                              /*
+                               * 若前端给出的 JSON 不正确，
+                               * 那么 bodyToMono(UpdateScoreDTO.class) 便不会正确解析，
+                               * 后续的调用会抛出非法参数异常。
+                               */
+                              return this.responseBuilder.BAD_REQUEST(
+                                  exception.getMessage(),
+                                  exception
+                              );
+                          }
+                      );
     }
 
     public @NotNull Mono<ServerResponse>
