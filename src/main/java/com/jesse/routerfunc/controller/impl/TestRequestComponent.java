@@ -1,5 +1,6 @@
-package com.jesse.routerfunc.controller;
+package com.jesse.routerfunc.controller.impl;
 
+import com.jesse.routerfunc.controller.TestRequestInterface;
 import com.jesse.routerfunc.controller.utils.ResponseBuilder;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
@@ -13,7 +14,7 @@ import java.util.Map;
 
 @Slf4j
 @Component
-public class TestRequestComponent
+public class TestRequestComponent implements TestRequestInterface
 {
     @Autowired
     private ResponseBuilder responseBuilder;
@@ -40,7 +41,11 @@ public class TestRequestComponent
         processAttributesMap(request.attributes());
 
         return this.responseBuilder
-                   .OK(null,"Use route function firstly.", null);
+                   .OK(
+                       null,
+                       "Use route function firstly.",
+                       null, null
+                   );
     }
 
     /**
@@ -51,6 +56,9 @@ public class TestRequestComponent
     {
         processAttributesMap(request.attributes());
 
-        return this.responseBuilder.OK(null,"Bye!", null);
+        return this.responseBuilder.OK(
+            null,"Bye!",
+            null, null
+        );
     }
 }
