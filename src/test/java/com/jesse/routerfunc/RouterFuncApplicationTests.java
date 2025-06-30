@@ -2,31 +2,30 @@ package com.jesse.routerfunc;
 
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.test.web.reactive.server.WebTestClient;
 
 @Slf4j
-@SpringBootTest
+@ExtendWith(SpringExtension.class)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class RouterFuncApplicationTests
 {
+    @Autowired
+    private WebTestClient webTestClient;
+
     @Test
-    void TestFLatMapOperator()
+    public void shouldReturnRecentScores()
     {
-        Flux<Player> playerFlux
-            = Flux.just(
-                "Peter Griffin", "Lois Griffin",
-                       "Cris Griffin", "Meg Griffin"
-            ).flatMap(
-               (name) -> {
-                   String[] splitName = name.split("\\s");
-
-                   return Mono.just(new Player(splitName[0], splitName[1]))
-                              .subscribeOn(Schedulers.parallel());
-               }
-            );
-
-        playerFlux.subscribe((player) -> log.info("{}", player));
+        this.webTestClient.get()
+            .uri("/api/recent_score?count=-1")
+            .accept(MediaType.APPLICATION_JSON).exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.data.*").isArray()
+            .jsonPath("$.data.length()").isEqualTo(5);
     }
 }
