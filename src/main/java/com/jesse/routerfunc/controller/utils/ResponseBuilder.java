@@ -270,12 +270,14 @@ public class ResponseBuilder
      * @param status        响应码
      * @param data          响应体
      * @param customMessage 响应消息
+     * @param hateOASLink   HATEOAS 元数据集合
      *
      * @return 构造好地响应体
      */
     private <T> APIResponse<T> produceBody(
             HttpStatus status, T data,
-            String customMessage
+            String customMessage,
+            Set<Link> hateOASLink
     )
     {
         APIResponse<T> response = new APIResponse<>(status);
@@ -285,11 +287,22 @@ public class ResponseBuilder
             response.setMessage(customMessage);
         }
 
+        if (hateOASLink != null)
+        {
+            for (Link link : hateOASLink)
+            {
+                response.withLink(
+                    link.getRel(),
+                    link.getHref(), link.getMethod()
+                );
+            }
+        }
+
         return response;
     }
 
     /**
-     * 基础响应的构建。
+     * 基础响应的构建其一。
      *
      * <p>用例如下所式：</p>
      * <pre><code>
@@ -299,28 +312,52 @@ public class ResponseBuilder
      *     headers -> {
      *         headers.add("X-RateLimit-Remaining", "100");
      *         headers.setContentType(MediaType.APPLICATION_JSON);
-     *     }
+     *     }, hateOASLink
      * );
      * </code></pre>
      *
      * @param status            响应码
      * @param body              响应体
      * @param headersCustomizer 响应头消费者
+     * @param hateOASLink       HATEOAS 元数据集合
      *
      * @return 构造好地响应体 Mono
      */
     public @NotNull Mono<ServerResponse> build(
             HttpStatus status, Object body, String customMessage,
-            Consumer<HttpHeaders> headersCustomizer
+            Consumer<HttpHeaders> headersCustomizer,
+            Set<Link> hateOASLink
     )
     {
         return ServerResponse.status(status)
                 .headers(headersCustomizer)
                 .bodyValue(
                     this.produceBody(
-                            status, body, customMessage
+                            status, body,
+                            customMessage, hateOASLink
                     )
                 );
+    }
+
+    /**
+     * 基础响应的构建其二。
+     *
+     * @param <T> 响应数据类型
+     *
+     * @param headersCustomizer 响应头消费者
+     * @param response 响应体数据（外部构建）
+     *
+     * @return 构造好地响应体 Mono
+     */
+    public @NotNull <T> Mono<ServerResponse>
+    build(
+        Consumer<HttpHeaders> headersCustomizer,
+        APIResponse<T>        response
+    )
+    {
+        return ServerResponse.status(response.getSTATUES())
+            .headers(headersCustomizer)
+            .bodyValue(response);
     }
 
     /**
@@ -350,7 +387,8 @@ public class ResponseBuilder
     public @NotNull Mono<ServerResponse>
     buildCreated(
         URI location, Object body, String customMessage,
-        Consumer<HttpHeaders> headersCustomizer
+        Consumer<HttpHeaders> headersCustomizer,
+        Set<Link> hateOASLink
     )
     {
         Consumer<HttpHeaders> headersCombined
@@ -366,7 +404,8 @@ public class ResponseBuilder
                 .headers(headersCombined)
                 .bodyValue(
                     this.produceBody(
-                        HttpStatus.CREATED, body, customMessage
+                        HttpStatus.CREATED, body,
+                        customMessage, hateOASLink
                     )
                 );
     }
@@ -403,7 +442,7 @@ public class ResponseBuilder
 
         APIResponse<?> response
             = this.produceBody(
-                    status, null, message
+                    status, null, message, null
             );
         response.getMetadata().put("errorCode", "ERR_" + status.value());
 
@@ -416,7 +455,8 @@ public class ResponseBuilder
     public @NotNull Mono<ServerResponse>
     OK(
         Object data, String customMessage,
-        Consumer<HttpHeaders> headerCustomizer
+        Consumer<HttpHeaders> headerCustomizer,
+        Set<Link> hateOASLink
     )
     {
         return this.build(
@@ -426,7 +466,7 @@ public class ResponseBuilder
                 if (headerCustomizer != null) {
                     headerCustomizer.accept(headers);
                 }
-            }
+            }, hateOASLink
         );
     }
 
@@ -456,7 +496,10 @@ public class ResponseBuilder
 
     /** CREATED 响应的预设构建。*/
     public @NotNull Mono<ServerResponse>
-    CREATED(URI location, String customMessage, Object body)
+    CREATED(
+        URI location, String customMessage,
+        Object body, Set<Link> hateOASLink
+    )
     {
         return this.buildCreated(
             location, body, customMessage,
@@ -469,7 +512,7 @@ public class ResponseBuilder
                 headers.add("X-RateLimit-Remaining", "100");
                 headers.add("X-Custom-Header", "value");
                 headers.setContentType(MediaType.APPLICATION_JSON);
-            }
+            }, hateOASLink
         );
     }
 
