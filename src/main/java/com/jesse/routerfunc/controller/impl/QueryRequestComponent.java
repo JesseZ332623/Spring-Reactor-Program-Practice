@@ -1,15 +1,20 @@
-package com.jesse.routerfunc.controller;
+package com.jesse.routerfunc.controller.impl;
 
+import com.jesse.routerfunc.controller.QueryRequestInterface;
+import com.jesse.routerfunc.controller.utils.Link;
 import com.jesse.routerfunc.controller.utils.OperatorLogger;
 import com.jesse.routerfunc.controller.utils.ResponseBuilder;
+import com.jesse.routerfunc.dto.ScoreQueryDTO;
 import com.jesse.routerfunc.dto.UpdateScoreDTO;
 import com.jesse.routerfunc.entity.ScoreRecordEntity;
 import com.jesse.routerfunc.repository.ScoreRecordRepository;
 import com.jesse.routerfunc.repository.UserRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.server.ServerRequest;
@@ -17,14 +22,20 @@ import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Set;
 
+import static org.springframework.http.HttpMethod.GET;
 import static com.jesse.routerfunc.controller.utils.URIParamPrase.praseNumberRequestParam;
 import static java.lang.String.format;
+import static org.springframework.http.HttpStatus.OK;
+import static com.jesse.routerfunc.controller.utils.ResponseBuilder.APIResponse;
 
 @Slf4j
 @Component
-public class QueryRequestComponent
+public class QueryRequestComponent implements QueryRequestInterface
 {
     @Autowired
     private ScoreRecordRepository scoreRecordRepository;
@@ -44,17 +55,82 @@ public class QueryRequestComponent
     @Value(value = "${server.port}")
     private int SERVER_PORT;
 
+    /** 一页固定 15 条数据 */
+    private final int PAGE_LIMIT = 5;
+
+    /** 请求根目录字符串。*/
+    private String URI_ROOT;
+
+    /** 成绩总数查询缓存有效期：30 秒。*/
+    private final Duration SCORE_COUNT_CACHE_TTL = Duration.ofSeconds(30);
+
+    /** 缓存的成绩表数据总条数。 */
+    private Mono<Long> cachedScoreCount;
+
+    /**
+     * 在类构建时初始化 cachedScoreCount。
+     * 使用 @PostConstruct 注解，确保该方法在依赖注入完成后才被执行、
+     */
+    @PostConstruct
+    private void initScoreCount() {
+        refreshScoreCountCache();
+    }
+
+    /** 在依赖注入完毕后组合出请求根目录。 */
+    @PostConstruct
+    private void initURIBase() {
+        this.URI_ROOT = "http://" + SERVER_ADDRESS + ":" + SERVER_PORT;
+    }
+
+    /** 刷新缓存的核心方法。*/
+    private void refreshScoreCountCache()
+    {
+        this.cachedScoreCount = this.scoreRecordRepository.count()
+            .cache(SCORE_COUNT_CACHE_TTL)
+            .doOnSuccess(count -> log.debug("Score count updated: {}", count))
+            .doOnError(e  -> log.error("Failed to refresh score count cache", e));
+    }
+
+    /** 在数据变更操作后刷新缓存。*/
+    private void onDataChanged()
+    {
+        log.info("Data changed, refreshing count cache.");
+        refreshScoreCountCache();
+    }
+
     private @NotNull Mono<ServerResponse>
     queryScoreByIdHandle(Integer scoreId)
     {
         return this.scoreRecordRepository
                    .findScoreRecordByScoreId(scoreId)
-                   .flatMap((score) ->
-                        this.responseBuilder.OK(
-                            score,
-                            format("Query score record id = %d success!", scoreId),
-                            null
-                        )
+                   .flatMap((score) -> {
+
+                       final String singleQueryLink = URI_ROOT + "/api/query/score_record?id=";
+
+                       return this.cachedScoreCount
+                                  .flatMap((count) -> {
+                                       Set<Link> hateOASLink = Set.of(
+                                           new Link("next",
+                                               (scoreId + 1 <= count)
+                                                   ? singleQueryLink + (scoreId + 1)
+                                                   : singleQueryLink + count, GET
+                                           ),
+                                           new Link("prev",
+                                               (scoreId - 1 >= 1)
+                                                   ? singleQueryLink + (scoreId - 1)
+                                                   : singleQueryLink + 1, GET
+                                           ),
+                                           new Link("first", singleQueryLink + "1", GET),
+                                           new Link("last", singleQueryLink + count, GET)
+                                       );
+
+                                       return this.responseBuilder.OK(
+                                           score,
+                                           format("Query score record id = %d success!", scoreId),
+                                           null, hateOASLink
+                                       );
+                               });
+                   }
                    )
                    .doOnSubscribe((subscription) ->
                             this.operatorLogger.logStartedOperator(
@@ -64,7 +140,7 @@ public class QueryRequestComponent
                    .doOnError((error) ->
                             this.operatorLogger.logErrorOperator(
                                     "Query score by id: "    +
-                                            scoreId + "failed!", error
+                                    scoreId + "failed!", error
                             )
                     );
     }
@@ -112,37 +188,53 @@ public class QueryRequestComponent
     {
         return Mono.defer(
                 () -> {
-                    Integer count
-                            = praseNumberRequestParam(request, "count");
-                    /*
-                     * 数据的流动如下所示：
-                     *
-                     * - findRecentScoreRecord() 找出表中时间最新的 count 条数据（返回 Flux<ScoreRecordEntity>）
-                     * - collectList()           将 Flux<ScoreRecordEntity> 流中的多个数据收集为 Mono<List<ScoreRecordEntity>>
-                     * - flatMap(lamba)          将 Mono<List<ScoreRecordEntity>>，流内的数据映射给 ServerResponse，
-                     *                              然后返回 Mono<ServerResponse>，数据的处理到这里就完成了
-                     * - doOnSubscribe()         在该 Mono 正式被订阅前，加一条开始处理数据的日志输出
-                     * - doOnError()             定义 Mono 被订阅执行后出错时，输出的日志
-                     */
-                    return scoreRecordRepository.findRecentScoreRecord(count)
+                    // 先检查前端传入的参数值有没有大于总数据条数。
+                    return this.cachedScoreCount.flatMap((scoreCount) ->
+                    {
+                        Integer count
+                            = Math.toIntExact(
+                                Math.min(
+                                    praseNumberRequestParam(request, "count"),
+                                    scoreCount
+                                )
+                            );
+
+                        /*
+                         * 数据的流动如下所示：
+                         *
+                         * - findRecentScoreRecord() 找出表中时间最新的 count 条数据（返回 Flux<ScoreRecordEntity>）
+                         * - collectList()           将 Flux<ScoreRecordEntity> 流中的多个数据收集为 Mono<List<ScoreRecordEntity>>
+                         * - flatMap(lamba)          将 Mono<List<ScoreRecordEntity>>，流内的数据映射给 ServerResponse，
+                         *                              然后返回 Mono<ServerResponse>，数据的处理到这里就完成了
+                         * - doOnSubscribe()         在该 Mono 正式被订阅前，加一条开始处理数据的日志输出
+                         * - doOnError()             定义 Mono 被订阅执行后出错时，输出的日志
+                         */
+                        return scoreRecordRepository.findRecentScoreRecord(count)
                             .collectList()
                             .flatMap(records ->
-                                    (!records.isEmpty())
-                                            ? this.responseBuilder.OK(
-                                                records,
-                                        format("Query %d rows.", count),null
-                                            )
-                                            : this.responseBuilder.NOT_FOUND("Recent score not found!", null)
+                                (!records.isEmpty())
+                                    ? this.responseBuilder.OK(
+                                    records,
+                                    format("Query %d rows.", count),
+                                    null, null
+                                )
+                                    : this.responseBuilder.NOT_FOUND("Recent score not found!", null)
                             )
                             .doOnSubscribe(subscription ->
-                                    this.operatorLogger
-                                        .logStartedOperator("Processing recent scores request.")
+                                this.operatorLogger
+                                    .logStartedOperator("Processing recent scores request.")
+                            )
+                            .doOnSuccess((response)
+                                ->this.operatorLogger.logSuccessOperator(
+                                    format("Query %d rows.", count)
+                                )
                             )
                             .doOnError(error ->
-                                    this.operatorLogger.logErrorOperator(
-                                            "Error fetching scores!", error
-                                    )
+                                this.operatorLogger.logErrorOperator(
+                                    "Error fetching scores!", error
+                                )
                             );
+                    });
                 }
         ).onErrorResume(
                 IllegalArgumentException.class,
@@ -154,6 +246,121 @@ public class QueryRequestComponent
                         ),
                         exception
                     )
+        );
+    }
+
+    public @NotNull Mono<ServerResponse>
+    getScoreByPagination(ServerRequest request)
+    {
+        return Mono.defer(
+            () -> {
+                int page = praseNumberRequestParam(request, "page");
+
+                int springPage = page > 0 ? page - 1 : 0;
+                
+                return this.cachedScoreCount.flatMap(
+                    (count) -> {
+                        // 内部手动组装响应体
+                        return this.scoreRecordRepository
+                            .findScoreRecordWithPagination(PAGE_LIMIT, springPage * PAGE_LIMIT)
+                            .collectList()
+                            .flatMap(
+                                (scores) -> {
+                                    APIResponse<List<ScoreQueryDTO>> response = new APIResponse<>(OK);
+
+                                    Set<Link> links = getLinks(count, page);
+
+                                    response.withPagination(page, PAGE_LIMIT, count);
+
+                                    for (Link link : links)
+                                    {
+                                        response.withLink(
+                                            link.getRel(), link.getHref(), link.getMethod()
+                                        );
+                                    }
+
+                                    response.setData(scores);
+                                    response.setMessage(
+                                        format(
+                                            "Query score record (Page = %d, Size = %d) complete!",
+                                            page, PAGE_LIMIT
+                                        )
+                                    );
+
+                                    return this.responseBuilder.build(
+                                        (headers) ->
+                                            headers.setContentType(MediaType.APPLICATION_JSON),
+                                        response
+                                    );
+                                }
+                            )
+                            .doOnSubscribe((subscription) ->
+                                this.operatorLogger.logStartedOperator(
+                                    format(
+                                        "Ready to query with pagination! (Page = %d, Size = %d)",
+                                        page, PAGE_LIMIT
+                                    )
+                                )
+                            )
+                            .doOnSuccess((response) ->
+                                this.operatorLogger.logSuccessOperator(
+                                    format(
+                                        "Query score record (Page = %d, Size = %d) complete!",
+                                        page, PAGE_LIMIT
+                                    )
+                                )
+                            )
+                            .doOnError(
+                                (error) ->
+                                    this.operatorLogger.logErrorOperator(
+                                    "Failed to query with pagination! Cause: ", error
+                                )
+                            );
+                    }
+                );
+            }
+        ).onErrorResume(
+            IllegalArgumentException.class,
+            (exception) ->
+                this.responseBuilder.BAD_REQUEST(
+                    format(
+                        "URI %s exception cause: %s.",
+                        request.uri(), exception.getMessage()
+                    ),
+                    exception
+                )
+        );
+    }
+
+    private @NotNull Set<Link> getLinks(Long count, int page)
+    {
+        String paginateQueryURI = URI_ROOT + "/api/query/paginate_score?";
+
+        long totalPage
+            = (count % PAGE_LIMIT == 0)
+            ? count / PAGE_LIMIT : count / PAGE_LIMIT + 1;
+
+        return Set.of(
+            new Link(
+                "next page",
+                paginateQueryURI + "page=" +
+                    ((page + 1 > totalPage) ? totalPage : page + 1),
+                GET
+            ),
+            new Link(
+                "prev page",
+                paginateQueryURI + "page=" +
+                    (Math.max(page - 1, 1)),
+                GET
+            ),
+            new Link(
+                "first page",
+                paginateQueryURI + "page=1", GET
+            ),
+            new Link(
+                "last page",
+                paginateQueryURI + "page=" + totalPage, GET
+            )
         );
     }
 
@@ -169,7 +376,7 @@ public class QueryRequestComponent
                 URI newResourceLocation
                     = URI.create(
                     "http://" + SERVER_ADDRESS + ":" + SERVER_PORT +
-                        "/api/score_record?id=" +
+                        "/api/query/score_record?id=" +
                         newScore.getScoreId()
                 );
 
@@ -179,16 +386,18 @@ public class QueryRequestComponent
                     .CREATED(
                         newResourceLocation,
                         format("Insert new score record id = %d complete.", newScore.getScoreId()),
-                        newScore
+                        newScore, null
                     );
             })
             .doOnSubscribe((subscription) ->
                 this.operatorLogger
                     .logStartedOperator("Ready to insert new score record.")
             )
-            .doOnSuccess(response ->
-                this.operatorLogger
-                    .logSuccessOperator("Insert new score record complete!.")
+            .doOnSuccess(response -> {
+                    this.onDataChanged();
+                    this.operatorLogger
+                        .logSuccessOperator("Insert new score record complete!.");
+                }
             )
             .doOnError((error) ->
                 this.operatorLogger
@@ -265,15 +474,14 @@ public class QueryRequestComponent
                    {
                        URI updatedResourceLocation
                            = URI.create(
-                                   "http://"                               +
-                                   SERVER_ADDRESS + ":"    + SERVER_PORT   +
-                                   "/api/score_record?id=" + updatedScore.getScoreId()
+                                   "http://" + SERVER_ADDRESS + ":" + SERVER_PORT +
+                                   "/api/query/score_record?id=" + updatedScore.getScoreId()
                                );
 
                        return this.responseBuilder.CREATED(
                            updatedResourceLocation,
                            format("Update score id = %d complete!", updatedScore.getScoreId()),
-                           updatedScore
+                           updatedScore, null
                        );
                    })
                     .doOnSubscribe((subscription) ->
@@ -362,7 +570,8 @@ public class QueryRequestComponent
                     */
                    .then(this.responseBuilder.OK(
                        null,
-                       "Truncate score_record table complete!", null
+                       "Truncate score_record table complete!",
+                       null, null
                    ));
     }
 
@@ -425,12 +634,14 @@ public class QueryRequestComponent
                         this.operatorLogger
                             .logStartedOperator("Ready to delete score record id = " + scoreId)
                 )
-                .doOnSuccess((o_O) ->
+                .doOnSuccess((o_O) -> {
+                        this.onDataChanged();
                         this.operatorLogger
                             .logSuccessOperator(
-                                    "Delete core record id = " +
+                                "Delete core record id = " +
                                     scoreId + " completed!"
-                            )
+                            );
+                    }
                 )
                 .doOnError((error) ->
                         this.operatorLogger.logErrorOperator(
@@ -441,7 +652,7 @@ public class QueryRequestComponent
                 .then(this.responseBuilder.OK(
                     null,
                     format("Delete core record id = %d completed successfully!", scoreId),
-                    null
+                    null, null
                 ));
     }
 }
