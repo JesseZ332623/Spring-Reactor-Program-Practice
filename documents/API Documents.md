@@ -1,6 +1,6 @@
 # API Documents
 
-## Form TestRequestComponent
+## From TestRequestComponent
 - [hello](http://localhost:8888/hello)
 - [bye](http://localhost:8888/bye)
 
