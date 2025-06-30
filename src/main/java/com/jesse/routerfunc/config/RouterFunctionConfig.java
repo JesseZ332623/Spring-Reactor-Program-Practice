@@ -1,8 +1,8 @@
 
 package com.jesse.routerfunc.config;
 
-import com.jesse.routerfunc.controller.QueryRequestComponent;
-import com.jesse.routerfunc.controller.TestRequestComponent;
+import com.jesse.routerfunc.controller.QueryRequestInterface;
+import com.jesse.routerfunc.controller.TestRequestInterface;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -16,10 +16,10 @@ import org.springframework.web.reactive.function.server.*;
 public class RouterFunctionConfig
 {
     @Autowired
-    private QueryRequestComponent queryRequestComponent;
+    private QueryRequestInterface queryRequestComponent;
 
     @Autowired
-    private TestRequestComponent  testRequestComponent;
+    private TestRequestInterface testRequestComponent;
 
     /**
      * 有别于传统的，基于注解的 Spring MVC 编程模型，
@@ -50,12 +50,13 @@ public class RouterFunctionConfig
 
         RouterFunction<ServerResponse> complexRequestRoute
                 = RouterFunctions.route()
-                  .GET("/api/recent_score",      this.queryRequestComponent::getRecentScore)
-                  .GET("/api/score_record",      this.queryRequestComponent::getScoreRecordById)
-                  .POST("/api/add_new_score",    this.queryRequestComponent::insertNewScoreRecord)
-                  .PUT("/api/update_score",      this.queryRequestComponent::updateSpecifiedScoreRecord)
-                  .DELETE("/api/delete_score",   this.queryRequestComponent::deleteScoreRecordById)
-                  .DELETE("/api/truncate_score", this.queryRequestComponent::truncateScoreRecord)
+                  .GET("/api/query/recent_score",   this.queryRequestComponent::getRecentScore)
+                  .GET("/api/query/score_record",   this.queryRequestComponent::getScoreRecordById)
+                  .GET("/api/query/paginate_score", this.queryRequestComponent::getScoreByPagination)
+                  .POST("/api/add_new_score",       this.queryRequestComponent::insertNewScoreRecord)
+                  .PUT("/api/update_score",         this.queryRequestComponent::updateSpecifiedScoreRecord)
+                  .DELETE("/api/delete_score",      this.queryRequestComponent::deleteScoreRecordById)
+                  .DELETE("/api/truncate_score",    this.queryRequestComponent::truncateScoreRecord)
                   .build();
 
         return basicRequestRoute.and(complexRequestRoute);
