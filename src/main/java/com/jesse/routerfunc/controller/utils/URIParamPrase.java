@@ -35,9 +35,14 @@ public class URIParamPrase
 
         try
         {
-            return Integer.valueOf(
-                    request.queryParam(paramName).get()
-            );
+            String paramVal = request.queryParam(paramName).get();
+            int phraseVal   = Integer.parseInt(paramVal);
+
+            if (phraseVal < 0) {
+                throw new IllegalArgumentException("Parameter not less than 0!");
+            }
+
+            return phraseVal;
         }
         catch (NumberFormatException exception)
         {
