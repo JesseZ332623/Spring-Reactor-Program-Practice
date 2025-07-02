@@ -2,6 +2,7 @@ package com.jesse.routerfunc.controller.utils;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.http.HttpHeaders;
@@ -30,13 +31,14 @@ public class ResponseBuilder
      * @param <T> 响应体数据类型
      */
     @Data
+    @NoArgsConstructor
     public static class APIResponse<T>
     {
         /** 响应时间戳（默认是构造本响应体那一刻的时间）*/
         private final long TIME_STAMP = Instant.now().toEpochMilli();
 
         /** 响应码 */
-        private final HttpStatus STATUES;
+        private HttpStatus status;
 
         /** 响应消息 */
         private String message;
@@ -101,7 +103,7 @@ public class ResponseBuilder
 
         /** 响应体的构造方法。*/
         public APIResponse(HttpStatus status) {
-            this.STATUES  = status;
+            this.status   = status;
             this.message  = status.getReasonPhrase();
         }
 
@@ -355,7 +357,7 @@ public class ResponseBuilder
         APIResponse<T>        response
     )
     {
-        return ServerResponse.status(response.getSTATUES())
+        return ServerResponse.status(response.getStatus())
             .headers(headersCustomizer)
             .bodyValue(response);
     }
