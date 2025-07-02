@@ -1,6 +1,7 @@
 package com.jesse.routerfunc.controller.impl;
 
 import com.jesse.routerfunc.controller.QueryRequestInterface;
+import com.jesse.routerfunc.controller.exception.OffsetOutOfRange;
 import com.jesse.routerfunc.controller.utils.Link;
 import com.jesse.routerfunc.controller.utils.OperatorLogger;
 import com.jesse.routerfunc.controller.utils.ResponseBuilder;
@@ -55,8 +56,8 @@ public class QueryRequestComponent implements QueryRequestInterface
     @Value(value = "${server.port}")
     private int SERVER_PORT;
 
-    /** 一页固定 15 条数据 */
-    private final int PAGE_LIMIT = 5;
+    /** 一页固定 PAGE_LIMIT 条数据 */
+    private final int PAGE_LIMIT = 8;
 
     /** 请求根目录字符串。*/
     private String URI_ROOT;
@@ -260,6 +261,18 @@ public class QueryRequestComponent implements QueryRequestInterface
                 
                 return this.cachedScoreCount.flatMap(
                     (count) -> {
+                        int offset = springPage * PAGE_LIMIT;
+
+                        if (offset > count)
+                        {
+                            throw new OffsetOutOfRange(
+                                format(
+                                    "Input page (which is: %d) param is to large!",
+                                    page
+                                )
+                            );
+                        }
+
                         // 内部手动组装响应体
                         return this.scoreRecordRepository
                             .findScoreRecordWithPagination(PAGE_LIMIT, springPage * PAGE_LIMIT)
@@ -275,7 +288,8 @@ public class QueryRequestComponent implements QueryRequestInterface
                                     for (Link link : links)
                                     {
                                         response.withLink(
-                                            link.getRel(), link.getHref(), link.getMethod()
+                                            link.getRel(),
+                                            link.getHref(), link.getMethod()
                                         );
                                     }
 
@@ -321,14 +335,24 @@ public class QueryRequestComponent implements QueryRequestInterface
             }
         ).onErrorResume(
             IllegalArgumentException.class,
-            (exception) ->
-                this.responseBuilder.BAD_REQUEST(
+            (exception) -> {
+                // 当前端输入非数字参数
+                return this.responseBuilder.BAD_REQUEST(
                     format(
                         "URI %s exception cause: %s.",
                         request.uri(), exception.getMessage()
                     ),
                     exception
-                )
+                );
+            }
+        ).onErrorResume(
+            OffsetOutOfRange.class,
+            (exception) -> {
+                // 当前端输入过大的页数
+                return this.responseBuilder.NOT_FOUND(
+                    exception.getMessage(), exception
+                );
+            }
         );
     }
 
@@ -342,23 +366,23 @@ public class QueryRequestComponent implements QueryRequestInterface
 
         return Set.of(
             new Link(
-                "next page",
+                "next_page",
                 paginateQueryURI + "page=" +
                     ((page + 1 > totalPage) ? totalPage : page + 1),
                 GET
             ),
             new Link(
-                "prev page",
+                "prev_page",
                 paginateQueryURI + "page=" +
                     (Math.max(page - 1, 1)),
                 GET
             ),
             new Link(
-                "first page",
+                "first_page",
                 paginateQueryURI + "page=1", GET
             ),
             new Link(
-                "last page",
+                "last_page",
                 paginateQueryURI + "page=" + totalPage, GET
             )
         );
