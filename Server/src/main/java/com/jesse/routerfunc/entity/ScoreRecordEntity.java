@@ -1,5 +1,6 @@
 package com.jesse.routerfunc.entity;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
@@ -50,6 +51,10 @@ public class ScoreRecordEntity
     private @NonNull Long userId; // 用户 ID
 
     @Column("submit_date")
+    @JsonFormat(
+        shape   = JsonFormat.Shape.STRING,
+        pattern = "yyyy-MM-dd HH:mm:ss"
+    )
     private @NonNull
     LocalDateTime submitDate = LocalDateTime.now(); // 成绩提交日期
 
