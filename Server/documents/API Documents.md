@@ -17,19 +17,13 @@
 
   ```JSON
   {
+    "status": "OK",
     "message": "Query score record id = 114 success!",
     "data": {
         "scoreId": 114,
         "userId": 1,
         "userName": "Jesse",
-        "submitDate": [
-            2025,
-            5,
-            30,
-            23,
-            34,
-            1
-        ],
+        "submitDate": "2025-05-30 23:34:01",
         "correctCount": 16,
         "errorCount": 27,
         "noAnswerCount": 8
@@ -42,7 +36,7 @@
             },
             "last": {
                 "method": "GET",
-                "href": "http://localhost:8888/api/query/score_record?id=3996"
+                "href": "http://localhost:8888/api/query/score_record?id=4000"
             },
             "prev": {
                 "method": "GET",
@@ -54,10 +48,9 @@
             }
         }
     },
-    "statues": "OK",
-    "time_STAMP": 1751332024450
+    "time_STAMP": 1751449941350
   }
-  ``` 
+  ```
 
 ### [GET] Query recent score
 
@@ -69,43 +62,29 @@
 
   ```JSON
   {
+    "status": "OK",
     "message": "Query 2 rows.",
     "data": [
         {
-            "scoreId": 4003,
+            "scoreId": 2784,
             "userId": 1,
             "userName": "Jesse",
-            "submitDate": [
-                2025,
-                6,
-                30,
-                15,
-                35,
-                47
-            ],
-            "correctCount": 16,
-            "errorCount": 6,
-            "noAnswerCount": 3
+            "submitDate": "2025-06-22 22:32:10",
+            "correctCount": 29,
+            "errorCount": 21,
+            "noAnswerCount": 22
         },
         {
-            "scoreId": 4002,
+            "scoreId": 1193,
             "userId": 1,
             "userName": "Jesse",
-            "submitDate": [
-                2025,
-                6,
-                30,
-                15,
-                35,
-                47
-            ],
-            "correctCount": 16,
-            "errorCount": 6,
-            "noAnswerCount": 3
+            "submitDate": "2025-06-22 21:16:56",
+            "correctCount": 15,
+            "errorCount": 23,
+            "noAnswerCount": 17
         }
     ],
-    "statues": "OK",
-    "time_STAMP": 1751332163315
+    "time_STAMP": 1751450053135
   }
   ```
 
@@ -119,117 +98,109 @@
 
   ```JSON
   {
-    "message": "Query score record (Page = 15, Size = 5) complete!",
+    "status": "OK",
+    "message": "Query score record (Page = 15, Size = 8) complete!",
     "data": [
         {
-            "scoreId": 1948,
+            "scoreId": 3706,
             "userId": 1,
             "userName": "Jesse",
-            "submitDate": [
-                2025,
-                6,
-                16,
-                1,
-                23,
-                10
-            ],
-            "correctCount": 20,
-            "errorCount": 33,
-            "noAnswerCount": 28
+            "submitDate": "2025-06-12 11:35:51",
+            "correctCount": 17,
+            "errorCount": 2,
+            "noAnswerCount": 9
         },
         {
-            "scoreId": 2759,
+            "scoreId": 3793,
             "userId": 1,
             "userName": "Jesse",
-            "submitDate": [
-                2025,
-                6,
-                15,
-                22,
-                16,
-                34
-            ],
-            "correctCount": 12,
-            "errorCount": 25,
-            "noAnswerCount": 7
+            "submitDate": "2025-06-12 10:24:28",
+            "correctCount": 21,
+            "errorCount": 29,
+            "noAnswerCount": 39
         },
         {
-            "scoreId": 2273,
+            "scoreId": 1006,
             "userId": 1,
             "userName": "Jesse",
-            "submitDate": [
-                2025,
-                6,
-                15,
-                20,
-                22,
-                45
-            ],
-            "correctCount": 13,
-            "errorCount": 32,
-            "noAnswerCount": 4
+            "submitDate": "2025-06-12 09:33:44",
+            "correctCount": 23,
+            "errorCount": 11,
+            "noAnswerCount": 21
         },
         {
-            "scoreId": 3711,
+            "scoreId": 2448,
             "userId": 1,
             "userName": "Jesse",
-            "submitDate": [
-                2025,
-                6,
-                15,
-                18,
-                42,
-                35
-            ],
-            "correctCount": 38,
-            "errorCount": 3,
-            "noAnswerCount": 40
+            "submitDate": "2025-06-12 07:46:51",
+            "correctCount": 37,
+            "errorCount": 5,
+            "noAnswerCount": 3
         },
         {
-            "scoreId": 1285,
+            "scoreId": 600,
             "userId": 1,
             "userName": "Jesse",
-            "submitDate": [
-                2025,
-                6,
-                15,
-                17,
-                40,
-                32
-            ],
-            "correctCount": 29,
+            "submitDate": "2025-06-12 07:34:30",
+            "correctCount": 5,
+            "errorCount": 5,
+            "noAnswerCount": 22
+        },
+        {
+            "scoreId": 2782,
+            "userId": 1,
+            "userName": "Jesse",
+            "submitDate": "2025-06-12 05:03:25",
+            "correctCount": 10,
+            "errorCount": 4,
+            "noAnswerCount": 23
+        },
+        {
+            "scoreId": 484,
+            "userId": 1,
+            "userName": "Jesse",
+            "submitDate": "2025-06-12 03:59:54",
+            "correctCount": 26,
             "errorCount": 39,
-            "noAnswerCount": 12
+            "noAnswerCount": 29
+        },
+        {
+            "scoreId": 3562,
+            "userId": 1,
+            "userName": "Jesse",
+            "submitDate": "2025-06-12 03:03:22",
+            "correctCount": 34,
+            "errorCount": 30,
+            "noAnswerCount": 36
         }
     ],
     "metadata": {
         "pagination": {
-            "size": 5,
-            "totalItem": 3996,
+            "size": 8,
+            "totalItem": 4000,
             "page": 15
         },
         "_links": {
-            "prev_page": {
-                "method": "GET",
-                "href": "http://localhost:8888/api/query/paginate_score?page=14"
-            },
             "next_page": {
                 "method": "GET",
                 "href": "http://localhost:8888/api/query/paginate_score?page=16"
             },
             "last_page": {
                 "method": "GET",
-                "href": "http://localhost:8888/api/query/paginate_score?page=800"
+                "href": "http://localhost:8888/api/query/paginate_score?page=500"
             },
             "first_page": {
                 "method": "GET",
                 "href": "http://localhost:8888/api/query/paginate_score?page=1"
+            },
+            "prev_page": {
+                "method": "GET",
+                "href": "http://localhost:8888/api/query/paginate_score?page=14"
             }
         }
     },
-    "statues": "OK",
-    "time_STAMP": 1751332289234
-  }
+    "time_STAMP": 1751450473074
+    }
   ```
 
 ### [POST] Add new score
@@ -240,7 +211,7 @@
     ```JSON
     {
         "userId": 1,
-        "submitDate": [2015, 6, 30, 15, 35, 46],
+        "submitDate": [2018, 6, 30, 15, 35, 46],
         "correctCount": 23,
         "errorCount": 6,
         "noAnswerCount": 3
@@ -251,24 +222,17 @@
 
   ```JSON
   {
-    "message": "Insert new score record id = 4005 complete.",
+    "status": "CREATED",
+    "message": "Insert new score record id = 4001 complete.",
     "data": {
-        "scoreId": 4005,
+        "scoreId": 4001,
         "userId": 1,
-        "submitDate": [
-            2015,
-            6,
-            30,
-            15,
-            35,
-            46
-        ],
+        "submitDate": "2018-06-30 15:35:46",
         "correctCount": 23,
         "errorCount": 6,
         "noAnswerCount": 3
     },
-    "statues": "CREATED",
-    "time_STAMP": 1751332396830
+    "time_STAMP": 1751450584108
   }
   ```
   
@@ -291,25 +255,17 @@
 
   ```JSON
   {
-    "message": "Insert new score record id = 114 complete.",
+    "status": "CREATED",
+    "message": "Update score id = 114 complete!",
     "data": {
         "scoreId": 114,
         "userId": 1,
-        "submitDate": [
-            2025,
-            7,
-            1,
-            9,
-            16,
-            1,
-            644329000
-        ],
+        "submitDate": "2025-07-02 18:04:57",
         "correctCount": 28,
         "errorCount": 6,
         "noAnswerCount": 5
     },
-    "statues": "CREATED",
-    "time_STAMP": 1751332561658
+    "time_STAMP": 1751450697696
   }
   ```
   
