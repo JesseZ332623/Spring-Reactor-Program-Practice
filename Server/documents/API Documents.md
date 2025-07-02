@@ -1,6 +1,7 @@
 # API Documents
 
 ## From TestRequestComponent
+
 - [hello](http://localhost:8888/hello)
 - [bye](http://localhost:8888/bye)
 
@@ -8,11 +9,12 @@
 
 ### [GET] Query score by ID
 
-- Base URI: http://localhost:8888/api/query/score_record
+- Base URI: <http://localhost:8888/api/query/score_record>
 - Parameter
   - id (Number)
-- Example: http://localhost:8888/api/query/score_record?id=114
+- Example: <http://localhost:8888/api/query/score_record?id=114>
 - Response
+
   ```JSON
   {
     "message": "Query score record id = 114 success!",
@@ -59,11 +61,12 @@
 
 ### [GET] Query recent score
 
-- Base URI: http://localhost:8888/api/query/recent_score
+- Base URI: <http://localhost:8888/api/query/recent_score>
 - Parameter
   - count (Number)
-- Example: http://localhost:8888/query/api/recent_score?count=2
+- Example: <http://localhost:8888/query/api/recent_score?count=2>
 - Response
+
   ```JSON
   {
     "message": "Query 2 rows.",
@@ -108,11 +111,12 @@
 
 ### [GET] Query score with pagination
 
-- Base URI: http://localhost:8888/api/query/paginate_score
+- Base URI: <http://localhost:8888/api/query/paginate_score>
 - Parameter
   - page (Number)
-- Example: http://localhost:8888/api/query/paginate_score?page=15
+- Example: <http://localhost:8888/api/query/paginate_score?page=15>
 - Response
+
   ```JSON
   {
     "message": "Query score record (Page = 15, Size = 5) complete!",
@@ -205,19 +209,19 @@
             "page": 15
         },
         "_links": {
-            "prev page": {
+            "prev_page": {
                 "method": "GET",
                 "href": "http://localhost:8888/api/query/paginate_score?page=14"
             },
-            "next page": {
+            "next_page": {
                 "method": "GET",
                 "href": "http://localhost:8888/api/query/paginate_score?page=16"
             },
-            "last page": {
+            "last_page": {
                 "method": "GET",
                 "href": "http://localhost:8888/api/query/paginate_score?page=800"
             },
-            "first page": {
+            "first_page": {
                 "method": "GET",
                 "href": "http://localhost:8888/api/query/paginate_score?page=1"
             }
@@ -230,8 +234,9 @@
 
 ### [POST] Add new score
 
-- URI: http://localhost:8888/api/add_new_score
+- URI: <http://localhost:8888/api/add_new_score>
 - Example of Submit Data
+
     ```JSON
     {
         "userId": 1,
@@ -241,7 +246,9 @@
         "noAnswerCount": 3
    }
   ```
+
 - Response
+
   ```JSON
   {
     "message": "Insert new score record id = 4005 complete.",
@@ -267,8 +274,9 @@
   
 ### [PUT] Update score by ID
 
-- URI: http://localhost:8888/api/update_score
+- URI: <http://localhost:8888/api/update_score>
 - Example of Submit Data
+
     ```JSON
     {
         "scoreId": 114,
@@ -278,7 +286,9 @@
         "noAnswerCount": 5
     }
     ```
+
 - Response
+
   ```JSON
   {
     "message": "Insert new score record id = 114 complete.",
@@ -305,11 +315,12 @@
   
 ### [DELETE] Delete score by ID
 
-- Base URI: http://localhost:8888/api/delete_score
+- Base URI: <http://localhost:8888/api/delete_score>
 - Parameter
   - id (Number)
-- Example: http://localhost:8888/api/delete_score?id=114
+- Example: <http://localhost:8888/api/delete_score?id=114>
 - Response
+
   ```JSON
   {
     "message": "Delete core record id = 114 complete!",
@@ -320,8 +331,9 @@
 
 ### [DELETE] Truncate score table
 
-- URI: http://localhost:8888/api/truncate_score
+- URI: <http://localhost:8888/api/truncate_score>
 - Response
+
   ```JSON
   {
     "message": "Truncate score_record table complete!",
