@@ -14,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static java.lang.String.format;
@@ -38,6 +39,10 @@ class RouterFuncApplicationTests
     /** 执行最近 n 条查询时的响应体类型。 */
     private final ParameterizedTypeReference<APIResponse<List<ScoreQueryDTO>>>
         RECENT_QUERY_RESPONSE_TYPE = new ParameterizedTypeReference<>() {};
+
+    /** 执行分页查询时的响应体类型。 */
+    private final ParameterizedTypeReference<APIResponse<List<ScoreQueryDTO>>>
+        PAGINATION_QUERY_RESPONSE_TYPE = new ParameterizedTypeReference<>() {};
 
     /**
      * 将 webTestClient 与一个路由函数绑定，
@@ -71,7 +76,7 @@ class RouterFuncApplicationTests
     public void TestSingleScoresQuery()
     {
         final long SCORE_COUNT
-            = this.scoreRecordRepository.count().block();
+            = Objects.requireNonNull(this.scoreRecordRepository.count().block());
 
         for (long id = 1L; id <= SCORE_COUNT; id++)
         {
@@ -91,7 +96,9 @@ class RouterFuncApplicationTests
     @Test
     public void TestRecentScoreQuery()
     {
-        final int paramCount = 30;
+        final int paramCount = 50;
+        final long SCORE_COUNT
+            = Objects.requireNonNull(this.scoreRecordRepository.count().block());
 
         for (int index = 0; index < 3; ++index)
         {
@@ -109,13 +116,36 @@ class RouterFuncApplicationTests
                 .value((response) ->
                     {
                         var scores = response.getData();
-                        for (var score : scores) {
-                            System.out.println(score.toString());
-                        }
+                        scores.forEach(System.out::println);
                     }
                 );
         }
     }
 
-    // 后续的测试类以后编写。
+    @Test
+    public void TestPaginationQuery()
+    {
+        int page = 1;
+        final long totalPage
+            = Objects.requireNonNull(
+                this.scoreRecordRepository.count().block()
+            ) / 8;
+
+        do
+        {
+            this.webTestClient.get()
+                .uri(format("/api/query/paginate_score?page=%d", page))
+                .accept(MediaType.APPLICATION_JSON)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(PAGINATION_QUERY_RESPONSE_TYPE)
+                .value((response) -> {
+                    var scores = response.getData();
+                    scores.forEach(System.out::println);
+                });
+
+            ++page;
+        }
+        while (page <= totalPage);
+    }
 }
