@@ -28,6 +28,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
+import static com.jesse.routerfunc.controller.utils.URIParamPrase.praseRequestParam;
 import static org.springframework.http.HttpMethod.GET;
 import static com.jesse.routerfunc.controller.utils.URIParamPrase.praseNumberRequestParam;
 import static java.lang.String.format;
@@ -255,12 +256,30 @@ public class QueryRequestComponent implements QueryRequestInterface
     {
         return Mono.defer(
             () -> {
-                int page = praseNumberRequestParam(request, "page");
+                int page         = praseNumberRequestParam(request, "page");
+                String queryName = praseRequestParam(request, "name");
+
+                log.info(
+                    "Pagination Param: Page = {}, Name: {}",
+                    page, queryName
+                );
 
                 int springPage = page > 0 ? page - 1 : 0;
                 
-                return this.cachedScoreCount.flatMap(
+                return this.scoreRecordRepository
+                    .countAllScoreRecordsByName(queryName)  // 查询指定用户名所用于的数据条数
+                    .flatMap(
                     (count) -> {
+                        if (count == 0)
+                        {
+                            throw new IllegalArgumentException(
+                                format(
+                                    "Query NOT FOUND! User Name %s not exist!",
+                                    queryName
+                                )
+                            );
+                        }
+
                         int offset = springPage * PAGE_LIMIT;
 
                         if (offset > count)
@@ -275,13 +294,16 @@ public class QueryRequestComponent implements QueryRequestInterface
 
                         // 内部手动组装响应体
                         return this.scoreRecordRepository
-                            .findScoreRecordWithPagination(PAGE_LIMIT, springPage * PAGE_LIMIT)
+                            .findScoreRecordWithPagination(
+                                queryName, PAGE_LIMIT, springPage * PAGE_LIMIT
+                            )
                             .collectList()
                             .flatMap(
                                 (scores) -> {
                                     APIResponse<List<ScoreQueryDTO>> response = new APIResponse<>(OK);
 
-                                    Set<Link> links = getLinks(count, page);
+                                    Set<Link> links
+                                        = getLinks(queryName, count, page);
 
                                     response.withPagination(page, PAGE_LIMIT, count);
 
@@ -356,34 +378,46 @@ public class QueryRequestComponent implements QueryRequestInterface
         );
     }
 
-    private @NotNull Set<Link> getLinks(Long count, int page)
+    private @NotNull Set<Link> getLinks(String name, Long count, int page)
     {
         String paginateQueryURI = URI_ROOT + "/api/query/paginate_score?";
 
-        long totalPage
-            = (count % PAGE_LIMIT == 0)
-            ? count / PAGE_LIMIT : count / PAGE_LIMIT + 1;
-
+        long totalPage = (count % PAGE_LIMIT == 0)
+                          ? count / PAGE_LIMIT
+                          : count / PAGE_LIMIT + 1;
+        /*
+         * HATEOAS 分页链接的格式如下：
+         * next_page : /api/query/paginate_score?name=Jesse&page=11
+         * ...
+         */
         return Set.of(
             new Link(
                 "next_page",
-                paginateQueryURI + "page=" +
-                    ((page + 1 > totalPage) ? totalPage : page + 1),
+                paginateQueryURI +
+                    "name=" + name + "&" +
+                    "page=" + ((page + 1 > totalPage) ? totalPage : page + 1),
                 GET
             ),
             new Link(
                 "prev_page",
-                paginateQueryURI + "page=" +
-                    (Math.max(page - 1, 1)),
+                paginateQueryURI +
+                    "name=" + name + "&" +
+                    "page=" + (Math.max(page - 1, 1)),
                 GET
             ),
             new Link(
                 "first_page",
-                paginateQueryURI + "page=1", GET
+                paginateQueryURI +
+                    "name=" + name + "&" +
+                    "page=1",
+                GET
             ),
             new Link(
                 "last_page",
-                paginateQueryURI + "page=" + totalPage, GET
+                paginateQueryURI +
+                    "name=" + name + "&" +
+                    "page=" + totalPage,
+                GET
             )
         );
     }
