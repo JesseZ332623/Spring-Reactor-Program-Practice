@@ -15,7 +15,7 @@ const routes = [
 		meta: { title: "Score" }
 	},
 	{
-		path: '/pagination_record/:page',
+		path: '/pagination_record/',
 		name: PaginationScoreRecordQuery,
 		component: PaginationScoreRecordQuery,
 		props: true,
@@ -24,10 +24,6 @@ const routes = [
 	{
 		path: '/record/',			// 对于未填参数的 URL，重定向回默认值
 		redirect: '/record/1'
-	},
-	{
-		path: '/pagination_record/',
-		redirect: '/pagination_record/1'
 	},
 	{
 		path: '/',
