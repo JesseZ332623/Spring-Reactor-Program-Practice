@@ -128,13 +128,13 @@ class RouterFuncApplicationTests
         int page = 1;
         final long totalPage
             = Objects.requireNonNull(
-                this.scoreRecordRepository.count().block()
+                this.scoreRecordRepository.countAllScoreRecordsByName("Jesse").block()
             ) / 8;
 
         do
         {
             this.webTestClient.get()
-                .uri(format("/api/query/paginate_score?page=%d", page))
+                .uri(format("/api/query/paginate_score?name=Jesse&page=%d", page))
                 .accept(MediaType.APPLICATION_JSON)
                 .exchange()
                 .expectStatus().isOk()
