@@ -211,7 +211,7 @@
     ```JSON
     {
         "userId": 1,
-        "submitDate": [2018, 6, 30, 15, 35, 46],
+        "submitDate": "2018-06-30 15:35:46",
         "correctCount": 23,
         "errorCount": 6,
         "noAnswerCount": 3
