@@ -3,18 +3,26 @@ package com.jesse.routerfunc;
 import com.jesse.routerfunc.config.RouterFunctionConfig;
 import com.jesse.routerfunc.dto.ScoreQueryDTO;
 import com.jesse.routerfunc.repository.ScoreRecordRepository;
+import com.jesse.routerfunc.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static java.lang.String.format;
@@ -24,8 +32,14 @@ import static com.jesse.routerfunc.controller.utils.ResponseBuilder.APIResponse;
 @SpringBootTest
 class RouterFuncApplicationTests
 {
+    @Value("${app.test.data-storage-path}")
+    private String RESULT_STORAGE_PATH;
+
     @Autowired
     private ScoreRecordRepository scoreRecordRepository;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Autowired
     private ApplicationContext context;
@@ -73,21 +87,52 @@ class RouterFuncApplicationTests
     }
 
     @Test
-    public void TestSingleScoresQuery()
+    public void TestSingleScoresQuery() throws IOException
     {
+
+        Path savePath = Paths.get(RESULT_STORAGE_PATH);
+        Files.deleteIfExists(savePath);
+
         final long SCORE_COUNT
             = Objects.requireNonNull(this.scoreRecordRepository.count().block());
+        final int BUFFER_MAX = 100;
 
-        for (long id = 1L; id <= SCORE_COUNT; id++)
+        Set<APIResponse<ScoreQueryDTO>> responseBuffer = new HashSet<>();
+
+        for (long index = 1L; index <= 4000; index++)
         {
+            long count = ThreadLocalRandom.current().nextLong(1, SCORE_COUNT);
             this.webTestClient.get()
-                .uri(format("/api/query/score_record?id=%d", id))
+                .uri(format("/api/query/score_record?id=%d", count))
                 .accept(MediaType.APPLICATION_JSON)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(SINGLE_QUERY_RESPONSE_TYPE)
                 .value((response) -> {
-                        System.out.println(response.getData().toString());
+                        responseBuffer.add(response);
+                        if (responseBuffer.size() >= BUFFER_MAX)
+                        {
+                            responseBuffer.forEach(
+                                (res) -> {
+                                    try
+                                    {
+                                        Files.writeString(
+                                            savePath, res.getData().toString() + "\n",
+                                            StandardCharsets.UTF_8,
+                                            StandardOpenOption.WRITE,
+                                            StandardOpenOption.APPEND,
+                                            StandardOpenOption.CREATE
+                                        );
+                                    }
+                                    catch (IOException exception)
+                                    {
+                                        log.error(exception.getMessage());
+                                        throw new RuntimeException(exception);
+                                    }
+                                }
+                            );
+                            responseBuffer.clear();
+                        }
                     }
                 );
         }
@@ -96,14 +141,10 @@ class RouterFuncApplicationTests
     @Test
     public void TestRecentScoreQuery()
     {
-        final int paramCount = 50;
-        final long SCORE_COUNT
-            = Objects.requireNonNull(this.scoreRecordRepository.count().block());
-
         for (int index = 0; index < 3; ++index)
         {
             long count
-                = ThreadLocalRandom.current().nextLong(1, 10);
+                = ThreadLocalRandom.current().nextLong(1, 50);
 
             this.webTestClient.get()
                 .uri(format(
@@ -125,27 +166,31 @@ class RouterFuncApplicationTests
     @Test
     public void TestPaginationQuery()
     {
-        int page = 1;
-        final long totalPage
-            = Objects.requireNonNull(
-                this.scoreRecordRepository.countAllScoreRecordsByName("Jesse").block()
+        List<String> allUsers
+            = this.userRepository.findAllUserName()
+                  .collectList().block();
+        Assertions.assertNotNull(allUsers);
+
+        for (String userName : allUsers)
+        {
+            long totalPage
+                = Objects.requireNonNull(
+                    this.scoreRecordRepository.countAllScoreRecordsByName(userName).block()
             ) / 8;
 
-        do
-        {
-            this.webTestClient.get()
-                .uri(format("/api/query/paginate_score?name=Jesse&page=%d", page))
-                .accept(MediaType.APPLICATION_JSON)
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody(PAGINATION_QUERY_RESPONSE_TYPE)
-                .value((response) -> {
-                    var scores = response.getData();
-                    scores.forEach(System.out::println);
-                });
-
-            ++page;
+            for (long page = 1; page <= totalPage; ++page)
+            {
+                this.webTestClient.get()
+                    .uri(format("/api/query/paginate_score?name=%s&page=%d", userName, page))
+                    .accept(MediaType.APPLICATION_JSON)
+                    .exchange()
+                    .expectStatus().isOk()
+                    .expectBody(PAGINATION_QUERY_RESPONSE_TYPE)
+                    .value((response) -> {
+                        var scores = response.getData();
+                        scores.forEach(System.out::println);
+                    });
+            }
         }
-        while (page <= totalPage);
     }
 }
