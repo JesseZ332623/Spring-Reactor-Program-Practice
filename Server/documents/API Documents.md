@@ -92,8 +92,9 @@
 
 - Base URI: <http://localhost:8888/api/query/paginate_score>
 - Parameter
+  - name (String)
   - page (Number)
-- Example: <http://localhost:8888/api/query/paginate_score?page=15>
+- Example: <http://localhost:8888/api/query/paginate_score?name=Jesse&page=15>
 - Response
 
   ```JSON
@@ -101,6 +102,24 @@
     "status": "OK",
     "message": "Query score record (Page = 15, Size = 8) complete!",
     "data": [
+        {
+            "scoreId": 3228,
+            "userId": 1,
+            "userName": "Jesse",
+            "submitDate": "2025-06-12 13:12:52",
+            "correctCount": 32,
+            "errorCount": 13,
+            "noAnswerCount": 3
+        },
+        {
+            "scoreId": 1363,
+            "userId": 1,
+            "userName": "Jesse",
+            "submitDate": "2025-06-12 12:25:11",
+            "correctCount": 21,
+            "errorCount": 15,
+            "noAnswerCount": 30
+        },
         {
             "scoreId": 3706,
             "userId": 1,
@@ -154,53 +173,35 @@
             "correctCount": 10,
             "errorCount": 4,
             "noAnswerCount": 23
-        },
-        {
-            "scoreId": 484,
-            "userId": 1,
-            "userName": "Jesse",
-            "submitDate": "2025-06-12 03:59:54",
-            "correctCount": 26,
-            "errorCount": 39,
-            "noAnswerCount": 29
-        },
-        {
-            "scoreId": 3562,
-            "userId": 1,
-            "userName": "Jesse",
-            "submitDate": "2025-06-12 03:03:22",
-            "correctCount": 34,
-            "errorCount": 30,
-            "noAnswerCount": 36
         }
     ],
     "metadata": {
         "pagination": {
             "size": 8,
-            "totalItem": 4000,
+            "totalItem": 4002,
             "page": 15
         },
         "_links": {
             "next_page": {
                 "method": "GET",
-                "href": "http://localhost:8888/api/query/paginate_score?page=16"
-            },
-            "last_page": {
-                "method": "GET",
-                "href": "http://localhost:8888/api/query/paginate_score?page=500"
+                "href": "http://localhost:8888/api/query/paginate_score?name=Jesse&page=16"
             },
             "first_page": {
                 "method": "GET",
-                "href": "http://localhost:8888/api/query/paginate_score?page=1"
+                "href": "http://localhost:8888/api/query/paginate_score?name=Jesse&page=1"
+            },
+            "last_page": {
+                "method": "GET",
+                "href": "http://localhost:8888/api/query/paginate_score?name=Jesse&page=501"
             },
             "prev_page": {
                 "method": "GET",
-                "href": "http://localhost:8888/api/query/paginate_score?page=14"
+                "href": "http://localhost:8888/api/query/paginate_score?name=Jesse&page=14"
             }
         }
     },
-    "time_STAMP": 1751450473074
-    }
+    "time_STAMP": 1751609437802
+  }
   ```
 
 ### [POST] Add new score
