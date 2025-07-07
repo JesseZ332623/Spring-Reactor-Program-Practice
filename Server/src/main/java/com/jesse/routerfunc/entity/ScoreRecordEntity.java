@@ -56,17 +56,17 @@ public class ScoreRecordEntity
         pattern = "yyyy-MM-dd HH:mm:ss"
     )
     private @NonNull
-    LocalDateTime submitDate = LocalDateTime.now(); // 成绩提交日期
+    LocalDateTime submitDate; // 成绩提交日期
 
     @Column("correct_count")
     private @NonNull
-    Integer correctCount = 0;       // 正确数
+    Integer correctCount;       // 正确数
 
     @Column("error_count")
     private @NonNull
-    Integer errorCount = 0;         // 错误数
+    Integer errorCount;         // 错误数
 
     @Column("no_answer_count")
     private @NonNull
-    Integer noAnswerCount = 0;      // 未答数
+    Integer noAnswerCount;      // 未答数
 }
