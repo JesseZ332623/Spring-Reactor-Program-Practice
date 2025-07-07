@@ -16,11 +16,8 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
-import org.springframework.transaction.annotation.Transactional;
-import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.ParallelFlux;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
@@ -30,7 +27,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static com.jesse.routerfunc.RandomTimeGenerator.randomBetween;
@@ -208,51 +204,56 @@ class RouterFuncApplicationTests
         }
     }
 
-//    @Test
-//    public void TestNewScoreGenerate() {
-//        ThreadLocalRandom random = ThreadLocalRandom.current();
-//
-//        final int INSERT_AMOUNT = 500000;
-//
-//        /*
-//         * 设计并行计划：
-//         * 池中有 36 个线程，队列长度 4500，执行线程名：Batch-Insert。
-//         */
-//        Scheduler scheduler
-//            = Schedulers.newBoundedElastic(
-//            36, 4500, "Batch-Insert"
-//        );
-//
-//        Mono<Long> insertStream
-//            = Flux.range(0, INSERT_AMOUNT)
-//            .flatMap((number) ->
-//            {
-//                var score = new ScoreRecordEntity(
-//                    random.nextLong(1, 4),
-//                    randomBetween(
-//                        LocalDateTime.of(2021, 1, 1, 0, 0, 0),
-//                        LocalDateTime.now()
-//                    ),
-//                    random.nextInt(1, 30),
-//                    random.nextInt(1, 30),
-//                    random.nextInt(1, 30)
-//                );
-//
-//                return this.scoreRecordRepository.save(score)
-//                    .subscribeOn(scheduler)
-//                    .thenReturn(1L);
-//            }).count()
-//            .doOnSuccess((count) ->
-//                log.info("Successfully inserted {} rows.", count)
-//            )
-//            .doOnError((exception) ->
-//                log.error("Insert failed! Cause: {}.", exception.getMessage())
-//            );
-//
-//        StepVerifier.create(insertStream)
-//            .expectNext(Long.valueOf(INSERT_AMOUNT))
-//            .verifyComplete();
-//    }
+    @Test
+    public void TestNewScoreGenerate()
+    {
+        if (this.scoreRecordRepository.count().block() > 0) {
+             return;
+        }
+
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+
+        final int INSERT_AMOUNT = 500000;
+
+        /*
+         * 设计并行计划：
+         * 池中有 36 个线程，队列长度 4500，执行线程名：Batch-Insert。
+         */
+        Scheduler scheduler
+            = Schedulers.newBoundedElastic(
+            36, 4500, "Batch-Insert"
+        );
+
+        Mono<Long> insertStream
+            = Flux.range(0, INSERT_AMOUNT)
+            .flatMap((number) ->
+            {
+                var score = new ScoreRecordEntity(
+                    random.nextLong(1, 4),
+                    randomBetween(
+                        LocalDateTime.of(2021, 1, 1, 0, 0, 0),
+                        LocalDateTime.now()
+                    ),
+                    random.nextInt(1, 30),
+                    random.nextInt(1, 30),
+                    random.nextInt(1, 30)
+                );
+
+                return this.scoreRecordRepository.save(score)
+                    .subscribeOn(scheduler)
+                    .thenReturn(1L);
+            }).count()
+            .doOnSuccess((count) ->
+                log.info("Successfully inserted {} rows.", count)
+            )
+            .doOnError((exception) ->
+                log.error("Insert failed! Cause: {}.", exception.getMessage())
+            );
+
+        StepVerifier.create(insertStream)
+            .expectNext(Long.valueOf(INSERT_AMOUNT))
+            .verifyComplete();
+    }
 
     @Test
     public void TestNewScoreAppend()
