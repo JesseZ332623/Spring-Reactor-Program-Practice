@@ -2,6 +2,7 @@ package com.jesse.routerfunc;
 
 import com.jesse.routerfunc.config.RouterFunctionConfig;
 import com.jesse.routerfunc.dto.ScoreQueryDTO;
+import com.jesse.routerfunc.entity.ScoreRecordEntity;
 import com.jesse.routerfunc.repository.ScoreRecordRepository;
 import com.jesse.routerfunc.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -15,16 +16,24 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.transaction.annotation.Transactional;
+import reactor.core.CoreSubscriber;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.ParallelFlux;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
+import reactor.test.StepVerifier;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
 
+import static com.jesse.routerfunc.RandomTimeGenerator.randomBetween;
 import static java.lang.String.format;
 import static com.jesse.routerfunc.controller.utils.ResponseBuilder.APIResponse;
 
@@ -57,6 +66,10 @@ class RouterFuncApplicationTests
     /** 执行分页查询时的响应体类型。 */
     private final ParameterizedTypeReference<APIResponse<List<ScoreQueryDTO>>>
         PAGINATION_QUERY_RESPONSE_TYPE = new ParameterizedTypeReference<>() {};
+
+    /** 执行单条插入时的响应体类型。 */
+    private final ParameterizedTypeReference<APIResponse<ScoreRecordEntity>>
+        INSERT_RESPONSE_TYPE = new ParameterizedTypeReference<>() {};
 
     /**
      * 将 webTestClient 与一个路由函数绑定，
@@ -169,6 +182,7 @@ class RouterFuncApplicationTests
         List<String> allUsers
             = this.userRepository.findAllUserName()
                   .collectList().block();
+
         Assertions.assertNotNull(allUsers);
 
         for (String userName : allUsers)
@@ -192,5 +206,100 @@ class RouterFuncApplicationTests
                     });
             }
         }
+    }
+
+//    @Test
+//    public void TestNewScoreGenerate() {
+//        ThreadLocalRandom random = ThreadLocalRandom.current();
+//
+//        final int INSERT_AMOUNT = 500000;
+//
+//        /*
+//         * 设计并行计划：
+//         * 池中有 36 个线程，队列长度 4500，执行线程名：Batch-Insert。
+//         */
+//        Scheduler scheduler
+//            = Schedulers.newBoundedElastic(
+//            36, 4500, "Batch-Insert"
+//        );
+//
+//        Mono<Long> insertStream
+//            = Flux.range(0, INSERT_AMOUNT)
+//            .flatMap((number) ->
+//            {
+//                var score = new ScoreRecordEntity(
+//                    random.nextLong(1, 4),
+//                    randomBetween(
+//                        LocalDateTime.of(2021, 1, 1, 0, 0, 0),
+//                        LocalDateTime.now()
+//                    ),
+//                    random.nextInt(1, 30),
+//                    random.nextInt(1, 30),
+//                    random.nextInt(1, 30)
+//                );
+//
+//                return this.scoreRecordRepository.save(score)
+//                    .subscribeOn(scheduler)
+//                    .thenReturn(1L);
+//            }).count()
+//            .doOnSuccess((count) ->
+//                log.info("Successfully inserted {} rows.", count)
+//            )
+//            .doOnError((exception) ->
+//                log.error("Insert failed! Cause: {}.", exception.getMessage())
+//            );
+//
+//        StepVerifier.create(insertStream)
+//            .expectNext(Long.valueOf(INSERT_AMOUNT))
+//            .verifyComplete();
+//    }
+
+    @Test
+    public void TestNewScoreAppend()
+    {
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        List<Integer> scoreIds   = new ArrayList<>();
+
+        Flux<APIResponse<ScoreRecordEntity>> entireStream
+            = Flux.range(0, 100)
+                  .concatMap((number) -> {
+                        // 生产一个成绩实体。
+                        var score = new ScoreRecordEntity(
+                            random.nextLong(1, 4),
+                            LocalDateTime.now(),
+                            random.nextInt(1, 30),
+                            random.nextInt(1, 30),
+                            random.nextInt(1, 30)
+                        );
+
+                      // 发起请求并输出响应数据
+                      APIResponse<ScoreRecordEntity> response
+                          = this.webTestClient.post()
+                                .uri("/api/add_new_score")
+                                .bodyValue(score)
+                                .accept(MediaType.APPLICATION_JSON)
+                                .exchange()
+                                .expectStatus().isCreated()
+                                .expectBody(INSERT_RESPONSE_TYPE)
+                                .returnResult()
+                                .getResponseBody();
+
+                      Assertions.assertNotNull(response);
+
+                      return Flux.just(response);
+                  })
+            .doOnNext((response) -> {
+                scoreIds.add(response.getData().getScoreId());
+                System.out.println(response.getData().toString());
+            }).doOnComplete(() -> log.info("Test insert request complete!"));
+
+        Flux<Void> deleteStream
+            = Flux.fromIterable(scoreIds).concatMap(
+            (id) -> this.scoreRecordRepository.deleteById(id)
+        )
+        .doOnSubscribe((subscription) -> log.info("Clean test data..."))
+        .doOnComplete(() -> log.info("Clean test data complete!"));
+
+        StepVerifier.create(entireStream.thenMany(deleteStream)).verifyComplete();
     }
 }
